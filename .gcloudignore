@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+.git/
+
+.venv/
+.vscode/
+.env
+.gcloudignore
+.gitignore
+.python-version
+LICENSE
+pyproject.toml
+README.md
+start_devserver.sh
+uv.lock

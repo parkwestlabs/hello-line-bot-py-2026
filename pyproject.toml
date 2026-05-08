@@ -1,0 +1,17 @@
+[project]
+name = "hello-line-bot-py-2026"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.136.1",
+    "line-bot-sdk>=3.23.0",
+    "python-dotenv>=1.2.2",
+]
+
+[tool.ruff]
+select = ["ALL"]
+ignore = [
+    "D"
+]

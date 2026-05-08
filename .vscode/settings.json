@@ -1,0 +1,23 @@
+{
+    "python.terminal.useEnvFile": true,
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "cSpell.words": [
+        "appspot",
+        "artifactregistry",
+        "cloudbuild",
+        "devserver",
+        "dotenv",
+        "fastapi",
+        "gcloudignore",
+        "linebot",
+        "pytest",
+        "redoc"
+    ]
+}
