@@ -1,0 +1,103 @@
+import json
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
+
+import pytest
+from fastapi import status
+from httpx import ASGITransport, AsyncClient
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks.models.delivery_context import DeliveryContext
+from linebot.v3.webhooks.models.source import Source
+
+from main import app
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
+
+@pytest.mark.asyncio
+async def test_callback_no_signature() -> None:
+    # 署名がないリクエストを送った時に 400 (Bad Request) になるかテスト
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        response = await ac.post("/callback", content="test body")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json() == {"detail": "Missing Signature"}
+
+
+@pytest.mark.asyncio
+async def test_callback_invalid_signature() -> None:
+    # 適当な署名で送った時に 400 になるかテスト
+    headers = {"X-Line-Signature": "invalid_sig"}
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        response = await ac.post("/callback", content='{"events":[]}', headers=headers)
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json() == {"detail": "Invalid Signature"}
+
+
+@pytest.mark.asyncio
+async def test_callback_success(mocker: MockerFixture) -> None:
+    # 1. 署名とボディの準備
+    headers = {"X-Line-Signature": "dummy_sig"}
+    body_dict = {
+        "events": [
+            {
+                "type": "message",
+                "replyToken": "test_token",
+                "message": {"type": "text", "text": "こんにちは"},
+            },
+        ],
+    }
+    body = json.dumps(body_dict)
+
+    # 2. WebhookParser の parse メソッドを Mock化
+    # 署名検証をスキップし、自作の MessageEvent を返すようにします
+    mock_event = MessageEvent(
+        replyToken="test_token",
+        source=Source.from_dict({"type": "user", "userId": "user_id"}),
+        message=TextMessageContent.from_dict(
+            {
+                "id": "msg_id",
+                "type": "text",
+                "text": "こんにちは",
+                "quoteToken": "dummy",
+            },
+        ),
+        mode="active",
+        webhookEventId="evt_id",
+        timestamp=0,
+        deliveryContext=DeliveryContext(isRedelivery=False),
+    )
+    mocker.patch("main.parser.parse", return_value=[mock_event])
+
+    # 3. AsyncMessagingApi の reply_message メソッドを Mock化 (AsyncMockを指定)
+    # これにより、実際に LINE サーバーへリクエストが飛ばなくなります
+    mock_reply = mocker.patch(
+        "linebot.v3.messaging.AsyncMessagingApi.reply_message",
+        new_callable=AsyncMock,
+    )
+
+    # 4. テスト実行 (AsyncClient を使用)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        response = await ac.post("/callback", content=body, headers=headers)
+
+    # 5. 検証
+    assert response.status_code == status.HTTP_200_OK
+    # reply_message が 1回 await されたことを確認
+    assert mock_reply.await_count == 1
+
+    # 引数の内容までチェック
+    args, _ = mock_reply.call_args
+    request_obj = args[0]
+    assert request_obj.reply_token == "test_token"
+    assert request_obj.messages[0].text == "Pythonから返信: こんにちは"

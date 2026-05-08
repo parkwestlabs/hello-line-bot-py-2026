@@ -49,7 +49,7 @@ async def callback(
     except InvalidSignatureError as err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid signature",
+            detail="Invalid Signature",
         ) from err
 
     if not isinstance(events, list):

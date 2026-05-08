@@ -12,3 +12,6 @@ wheels/
 # env var files
 .env*
 env_variables.yaml
+
+# pytest
+.coverage

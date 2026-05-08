@@ -19,8 +19,21 @@
 
 ```bash
 uv sync
+uv run pytest -v
 ./start_devserver.sh
 ```
+
+## GAE Deploy
+
+* `env_variables.yaml` を作成
+    * 参照→ https://stackoverflow.com/a/54055525
+```yaml
+env_variables:
+  LINE_CHANNEL_ACCESS_TOKEN: 'xxx'
+  LINE_CHANNEL_SECRET: 'xxx'
+```
+
+* `gcloud` で各種設定とデプロイ
 
 ```bash
 # 最初に auth login と config set project を
@@ -41,8 +54,13 @@ gcloud config set project [あなたのプロジェクトID]
 # 選択したプロジェクトIDを確認
 gcloud config get-value project
 
-# 必要な service を有効化
+# 事前に不足している service を確認
+gcloud services list --enabled
+
+# 必要な場合に service を有効化
 gcloud services enable xxx
+# 例 (多くの場合はデフォルトで入っていて不要と思われる)
+gcloud services enable appengine.googleapis.com cloudbuild.googleapis.com storage.googleapis.com
 
 # リージョン（場所）を選択して作成（東京なら asia-northeast1）
 gcloud app create --region=asia-northeast1
@@ -149,5 +167,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 ```bash
 uv init . --app
 uv add "fastapi[standard]" line-bot-sdk python-dotenv
-uv export --format requirements.txt > requirements.txt
+uv export --format requirements.txt -o requirements.txt
+
+uv add --dev ruff pyright pytest pytest-mock pytest-asyncio pytest-cov
 ```

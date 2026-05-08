@@ -11,6 +11,7 @@
     "cSpell.words": [
         "appspot",
         "artifactregistry",
+        "ASGI",
         "cloudbuild",
         "devserver",
         "dotenv",
