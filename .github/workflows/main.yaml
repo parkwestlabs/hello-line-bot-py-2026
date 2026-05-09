@@ -40,7 +40,6 @@ jobs:
       with:
         workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
         service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
-        token_format: 'access_token'
 
     - name: 'Check files to be uploaded'
       run: gcloud meta list-files-for-upload
