@@ -26,6 +26,8 @@ ignore = [
     "D",
     "COM812",
 ]
+# RUF001, RUF002, RUF003 のすべてで「？」を無視する
+allowed-confusables = ["？"]
 
 [tool.ruff.lint.per-file-ignores]
 "test_*.py" = [

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
+from linebot.v3.messaging.models.user_profile_response import UserProfileResponse
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.webhooks.models.delivery_context import DeliveryContext
 from linebot.v3.webhooks.models.source import Source
@@ -61,7 +62,7 @@ async def test_callback_success(mocker: MockerFixture) -> None:
     # 署名検証をスキップし、自作の MessageEvent を返すようにします
     mock_event = MessageEvent(
         replyToken="test_token",
-        source=Source.from_dict({"type": "user", "userId": "user_id"}),
+        source=Source.from_dict({"type": "user", "userId": "USERID"}),
         message=TextMessageContent.from_dict(
             {
                 "id": "msg_id",
@@ -77,8 +78,23 @@ async def test_callback_success(mocker: MockerFixture) -> None:
     )
     mocker.patch("main.parser.parse", return_value=[mock_event])
 
-    # 3. AsyncMessagingApi の reply_message メソッドを Mock化 (AsyncMockを指定)
+    # 3. AsyncMessagingApi の Mock 設定
     # これにより、実際に LINE サーバーへリクエストが飛ばなくなります
+
+    # get_profile メソッドを Mock化
+    mock_profile = mocker.patch(
+        "linebot.v3.messaging.AsyncMessagingApi.get_profile",
+        new_callable=AsyncMock,
+    )
+    mock_profile.return_value = UserProfileResponse(
+        displayName="山田",
+        userId="USERID",
+        pictureUrl="",
+        statusMessage="",
+        language="",
+    )
+
+    # reply_message メソッドを Mock化
     mock_reply = mocker.patch(
         "linebot.v3.messaging.AsyncMessagingApi.reply_message",
         new_callable=AsyncMock,
@@ -93,11 +109,18 @@ async def test_callback_success(mocker: MockerFixture) -> None:
 
     # 5. 検証
     assert response.status_code == status.HTTP_200_OK
-    # reply_message が 1回 await されたことを確認
+
+    # API profile response の確認
+    assert mock_profile.await_count == 1
+
+    args, _ = mock_profile.call_args
+    request_user_id = args[0]
+    assert request_user_id == "USERID"
+
+    # API reply_message の確認
     assert mock_reply.await_count == 1
 
-    # 引数の内容までチェック
     args, _ = mock_reply.call_args
     request_obj = args[0]
     assert request_obj.reply_token == "test_token"
-    assert request_obj.messages[0].text == "Pythonから返信: こんにちは"
+    assert request_obj.messages[0].text == "山田さんは「こんにちは」と言いましたね？"

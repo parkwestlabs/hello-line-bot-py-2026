@@ -9,6 +9,7 @@
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
     "cSpell.words": [
+        "appengine",
         "appspot",
         "artifactregistry",
         "ASGI",

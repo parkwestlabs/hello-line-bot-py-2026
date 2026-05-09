@@ -14,4 +14,7 @@ wheels/
 env_variables.yaml
 
 # pytest
+.pytest_cache
+.ruff_cache
+htmlcov
 .coverage

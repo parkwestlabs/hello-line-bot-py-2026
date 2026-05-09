@@ -171,3 +171,21 @@ uv export --format requirements.txt -o requirements.txt
 
 uv add --dev ruff pyright pytest pytest-mock pytest-asyncio pytest-cov
 ```
+
+## Reference
+
+* [無料][2024年版] LINE Messaging API v3 + Python(Flask) でボットを作る
+    * https://qiita.com/nozomiyamada/items/dff5f240e8c936d731fd
+* (参考) Gemi兄の解説 - なぜ SDK V3 は分かりにくいのか。以下は引用です。
+
+> 現在の SDK v3 がこれほど「ややこしい」抽象的な設計になっているのには、いくつか理由（というか苦肉の策）があります。
+
+### なぜこうなったのか？
+
+1. 自動生成の弊害: LINE SDK v3 は、OpenAPI (Swagger) という定義ファイルから機械的にコードを生成（Auto-generated）しています。そのため、人間が書くような「気が利いたクラス分け」よりも、仕様書の構造をそのままクラスに落とし込んでしまっているのです。
+2. 型安全への極端な振り切り: 「どんなイベントが飛んできても、型定義でエラーを出さない」ことを優先した結果、Source や MessageContent といった抽象的な親クラスを介さざるを得なくなりました。
+3. 柔軟性とのトレードオフ: グループ内でのユーザー特定など、複雑な組み合わせを一つの MessageEvent で表現しようとしたため、中身を開けてみないと正体がわからない「福袋」のようなオブジェクトになってしまいました。
+
+### 開発者としての向き合い方
+
+この「ライブラリの不便さ」をコードに持ち込みすぎないためには、やはり自分専用のラッパー（ラップ関数）を作ってしまうのが一番の防衛策です。

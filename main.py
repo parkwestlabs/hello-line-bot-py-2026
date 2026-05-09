@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from logging import getLogger
 from typing import Annotated, Never
 
@@ -13,7 +14,12 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 from linebot.v3.webhook import WebhookParser
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import (
+    ApiException,
+    MessageEvent,
+    TextMessageContent,
+    UserSource,
+)
 
 # official sample code
 # https://github.com/line/line-bot-sdk-python
@@ -58,23 +64,43 @@ async def callback(request: Request, x_line_signature: HEADER = None) -> str:
 
 
 async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -> None:
-    if not event.reply_token:
-        logger.warning("Empty reply_token")
-        return
-
-    if not isinstance(event.message, TextMessageContent):
-        return
-
-    reply_text = f"Pythonから返信: {event.message.text}"
-    message = TextMessage(
-        text=reply_text,
-        quickReply=None,
-        quoteToken=None,
+    logger.info(
+        "MessageEvent: source.type=%s, message.type=%s",
+        event.source.type if event.source else "NoneSource",
+        event.message.type,
     )
 
-    await line_bot_api.reply_message(
+    # UserSource TextMessageContent 以外はスルー
+    user_text = parse_user_text(event)
+
+    if user_text:
+        await handle_user_interaction(user_text, line_bot_api)
+
+
+async def handle_user_interaction(msg: UserText, api: AsyncMessagingApi) -> None:
+    user_name = await find_user_name(msg.user_id, api)
+    reply_text = f"{user_name}さんは「{msg.text}」と言いましたね？"
+
+    await reply_message(reply_text, msg.reply_token, api)
+
+
+async def find_user_name(user_id: str, api: AsyncMessagingApi) -> str:
+    try:
+        profile = await api.get_profile(user_id)
+        user_name = profile.display_name
+    except ApiException:
+        logger.exception("Error get_profile: %s", user_id)
+        user_name = "ユーザー"
+
+    return user_name
+
+
+async def reply_message(text: str, reply_token: str, api: AsyncMessagingApi) -> None:
+    message = TextMessage(text=text, quickReply=None, quoteToken=None)
+
+    await api.reply_message(
         ReplyMessageRequest(
-            replyToken=event.reply_token,
+            replyToken=reply_token,
             messages=[message],
             notificationDisabled=None,
         ),
@@ -83,3 +109,40 @@ async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -
 
 def _bad_request(message: str, e: Exception | None = None) -> Never:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message) from e
+
+
+# MessageEvent の種別を source と message で判別して、必要な値だけを抜き出す
+# Source は3種類:
+#   UserSource, GroupSource, RoomSource
+# MessageContent は7種類:
+#   TextMessageContent, ImageMessageContent,
+#   VideoMessageContent, AudioMessageContent,
+#   LocationMessageContent, StickerMessageContent, FileMessageContent
+
+
+@dataclass(frozen=True)
+class UserText:
+    user_id: str
+    text: str
+    reply_token: str
+
+
+def parse_user_text(event: MessageEvent) -> UserText | None:
+    if not isinstance(event.source, UserSource):
+        return None
+    if not isinstance(event.message, TextMessageContent):
+        return None
+
+    if not event.reply_token:
+        logger.warning("Empty reply_token")
+        return None
+
+    if not event.source.user_id:
+        logger.warning("Empty user_id")
+        return None
+
+    return UserText(
+        user_id=event.source.user_id,
+        text=event.message.text,
+        reply_token=event.reply_token,
+    )

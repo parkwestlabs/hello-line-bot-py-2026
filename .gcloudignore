@@ -8,14 +8,21 @@ wheels/
 
 .git/
 
+.github
+.pytest_cache
+.ruff_cache
 .venv/
 .vscode/
-.env
+htmlcov
+.coverage
+.env*
 .gcloudignore
 .gitignore
 .python-version
 LICENSE
 pyproject.toml
 README.md
+start_check.sh
 start_devserver.sh
+test_main.py
 uv.lock
