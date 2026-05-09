@@ -40,11 +40,10 @@ jobs:
       with:
         workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
         service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
+        token_format: 'access_token'
 
     - name: 'Check files to be uploaded'
-      run: |
-        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-        gcloud meta list-files-for-upload
+      run: gcloud meta list-files-for-upload
 
     - id: 'deploy'
       uses: 'google-github-actions/deploy-appengine@v3'
