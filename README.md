@@ -20,7 +20,7 @@
 ```bash
 uv sync
 uv run pytest -v
-./start_devserver.sh
+uv run fastapi dev main.py
 ```
 
 ## GAE Deploy

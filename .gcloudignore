@@ -19,10 +19,9 @@ htmlcov
 .gcloudignore
 .gitignore
 .python-version
+check.sh
 LICENSE
 pyproject.toml
 README.md
-start_check.sh
-start_devserver.sh
 test_main.py
 uv.lock
