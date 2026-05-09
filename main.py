@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Annotated
+from typing import Annotated, Never
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request, status
@@ -29,17 +29,13 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
 
+HEADER = Annotated[str | None, Header()]
+
 
 @app.post("/callback")
-async def callback(
-    request: Request,
-    x_line_signature: Annotated[str | None, Header()] = None,
-) -> str:
+async def callback(request: Request, x_line_signature: HEADER = None) -> str:
     if x_line_signature is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing Signature",
-        )
+        _bad_request("Missing Signature")
 
     body_bytes = await request.body()
     body_str = body_bytes.decode("utf-8")
@@ -47,13 +43,10 @@ async def callback(
     try:
         events = parser.parse(body_str, x_line_signature)
     except InvalidSignatureError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Signature",
-        ) from err
+        _bad_request("Invalid Signature", err)
 
     if not isinstance(events, list):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        _bad_request("Events not found")
 
     async with AsyncApiClient(configuration) as api_client:
         line_bot_api = AsyncMessagingApi(api_client)
@@ -86,3 +79,7 @@ async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -
             notificationDisabled=None,
         ),
     )
+
+
+def _bad_request(message: str, e: Exception | None = None) -> Never:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message) from e
