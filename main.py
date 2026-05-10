@@ -80,20 +80,28 @@ async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -
         event.webhook_event_id,
     )
 
-    webhook_id = event.webhook_event_id
-
-    if webhook_id in processed_event_ids:
-        logger.info("Duplicate event ignored: %s", webhook_id)
+    if not _should_process_event(event.webhook_event_id):
         return
-
-    # キャッシュに追加
-    processed_event_ids.append(webhook_id)
 
     # UserSource TextMessageContent 以外はスルー
     user_text = parse_user_text(event)
 
     if user_text:
         await handle_user_interaction(user_text, line_bot_api)
+
+
+def _should_process_event(webhook_id: str) -> bool:
+    """
+    reply_message で replyToken が重複して Bad Request になり
+    {"message":"Invalid reply token"} が出ることの防止用
+    """
+    if webhook_id in processed_event_ids:
+        logger.info("Duplicate event ignored: %s", webhook_id)
+        return False
+
+    # キャッシュに追加
+    processed_event_ids.append(webhook_id)
+    return True
 
 
 async def handle_user_interaction(msg: UserText, api: AsyncMessagingApi) -> None:
