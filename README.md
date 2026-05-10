@@ -2,7 +2,7 @@
 
 2026年5月時点における Python/FastAPI による LINE bot の Hello World サンプルコード
 
-* `line-bot-sdk` を利用しておうむ返しするbot
+* `line-bot-sdk` を利用して、スタンプ付けておうむ返しするbot
 * Tech Stack
     * Python 3.14
     * FastAPI (Flaskではない)

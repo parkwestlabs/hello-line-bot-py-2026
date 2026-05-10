@@ -123,4 +123,10 @@ async def test_callback_success(mocker: MockerFixture) -> None:
     args, _ = mock_reply.call_args
     request_obj = args[0]
     assert request_obj.reply_token == "test_token"
+
+    assert request_obj.messages[0].type == "text"
     assert request_obj.messages[0].text == "山田さんは「こんにちは」と言いましたね？"
+
+    assert request_obj.messages[1].type == "sticker"
+    assert request_obj.messages[1].package_id == "446"
+    assert request_obj.messages[1].sticker_id == "1988"

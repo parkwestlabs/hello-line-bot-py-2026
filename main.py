@@ -11,6 +11,7 @@ from linebot.v3.messaging import (
     AsyncMessagingApi,
     Configuration,
     ReplyMessageRequest,
+    StickerMessage,
     TextMessage,
 )
 from linebot.v3.webhook import WebhookParser
@@ -79,9 +80,17 @@ async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -
 
 async def handle_user_interaction(msg: UserText, api: AsyncMessagingApi) -> None:
     user_name = await find_user_name(msg.user_id, api)
-    reply_text = f"{user_name}さんは「{msg.text}」と言いましたね？"
 
-    await reply_message(reply_text, msg.reply_token, api)
+    reply_text = f"{user_name}さんは「{msg.text}」と言いましたね？"
+    message = TextMessage(text=reply_text, quickReply=None, quoteToken=None)
+
+    # LINE公式のスタンプ一覧から無料で使えるスタンプIDを取得する
+    # https://developers.line.biz/ja/docs/messaging-api/sticker-list/
+    sticker = StickerMessage(
+        packageId="446", stickerId="1988", quickReply=None, quoteToken=None
+    )
+
+    await reply_message([message, sticker], msg.reply_token, api)
 
 
 async def find_user_name(user_id: str, api: AsyncMessagingApi) -> str:
@@ -95,13 +104,13 @@ async def find_user_name(user_id: str, api: AsyncMessagingApi) -> str:
     return user_name
 
 
-async def reply_message(text: str, reply_token: str, api: AsyncMessagingApi) -> None:
-    message = TextMessage(text=text, quickReply=None, quoteToken=None)
-
+async def reply_message(
+    messages: list, reply_token: str, api: AsyncMessagingApi
+) -> None:
     await api.reply_message(
         ReplyMessageRequest(
             replyToken=reply_token,
-            messages=[message],
+            messages=messages,
             notificationDisabled=None,
         ),
     )
