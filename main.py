@@ -1,4 +1,6 @@
+import logging
 import os
+from collections import deque
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Annotated, Never
@@ -26,7 +28,10 @@ from linebot.v3.webhooks import (
 # https://github.com/line/line-bot-sdk-python
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -37,6 +42,9 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
 
 HEADER = Annotated[str | None, Header()]
+
+# グローバル変数に webhook_event_id を簡易 cache する (1つのインスタンス前提)
+processed_event_ids = deque(maxlen=1000)
 
 
 @app.post("/callback")
@@ -66,10 +74,20 @@ async def callback(request: Request, x_line_signature: HEADER = None) -> str:
 
 async def handle_message(event: MessageEvent, line_bot_api: AsyncMessagingApi) -> None:
     logger.info(
-        "MessageEvent: source.type=%s, message.type=%s",
+        "MessageEvent: source.type=%s, message.type=%s, webhook_event_id=%s",
         event.source.type if event.source else "NoneSource",
         event.message.type,
+        event.webhook_event_id,
     )
+
+    webhook_id = event.webhook_event_id
+
+    if webhook_id in processed_event_ids:
+        logger.info("Duplicate event ignored: %s", webhook_id)
+        return
+
+    # キャッシュに追加
+    processed_event_ids.append(webhook_id)
 
     # UserSource TextMessageContent 以外はスルー
     user_text = parse_user_text(event)
