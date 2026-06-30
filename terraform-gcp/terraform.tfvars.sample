@@ -1,0 +1,7 @@
+project_id           = "your-project"
+project_number       = "*****"
+region               = "asia-northeast1"
+github_repo          = "you/your-repo"
+gae_deployer_id      = "your-deployer"
+workload_pool_id     = "your-pool"
+workload_provider_id = "your-provider"

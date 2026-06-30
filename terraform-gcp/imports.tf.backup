@@ -1,0 +1,83 @@
+import {
+  to = google_app_engine_application.app
+  id = "${var.project_id}" # プロジェクトIDを入れるだけ
+}
+
+# ID形式: [プロジェクトID] [ロール] [メンバー] (空白でつなぐ)
+
+# gae_sys_sa_email への権限付与
+import {
+  to = google_project_iam_member.default_sa_artifactregistry_reader_role
+  id = "${var.project_id} roles/artifactregistry.reader serviceAccount:${local.gae_sys_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.default_sa_artifactregistry_writer_role
+  id = "${var.project_id} roles/artifactregistry.writer serviceAccount:${local.gae_sys_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.default_sa_logging_logWriter_role
+  id = "${var.project_id} roles/logging.logWriter serviceAccount:${local.gae_sys_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.default_sa_storage_admin_role
+  id = "${var.project_id} roles/storage.admin serviceAccount:${local.gae_sys_sa_email}"
+}
+
+# gae_deployer_sa_email
+import {
+  to = google_service_account.github_deploy
+  id = "projects/${var.project_id}/serviceAccounts/${local.gae_deployer_sa_email}"
+}
+
+# gae_deployer_sa_email への権限付与
+import {
+  to = google_project_iam_member.app_sa_appengine_appAdmin_role
+  id = "${var.project_id} roles/appengine.appAdmin serviceAccount:${local.gae_deployer_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.app_sa_artifactregistry_reader_role
+  id = "${var.project_id} roles/artifactregistry.reader serviceAccount:${local.gae_deployer_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.app_sa_cloudbuild__builds_editor_role
+  id = "${var.project_id} roles/cloudbuild.builds.editor serviceAccount:${local.gae_deployer_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.app_sa_iam_serviceAccountUser_role
+  id = "${var.project_id} roles/iam.serviceAccountUser serviceAccount:${local.gae_deployer_sa_email}"
+}
+
+import {
+  to = google_project_iam_member.app_sa_storage_admin_role
+  id = "${var.project_id} roles/storage.admin serviceAccount:${local.gae_deployer_sa_email}"
+}
+
+# 1. Workload Identity Pool 本体
+import {
+  to = google_iam_workload_identity_pool.github_pool
+  id = "projects/${var.project_id}/locations/global/workloadIdentityPools/${var.workload_pool_id}"
+}
+
+# 2. OIDC Provider
+import {
+  to = google_iam_workload_identity_pool_provider.github_provider
+  id = "projects/${var.project_id}/locations/global/workloadIdentityPools/${var.workload_pool_id}/providers/${var.workload_provider_id}"
+}
+
+# Workload Identity ユーザー権限
+import {
+  to = google_service_account_iam_member.workload_identity_user
+  id = "projects/${var.project_id}/serviceAccounts/${local.gae_deployer_sa_email} roles/iam.workloadIdentityUser ${local.github_principal}"
+}
+
+# サービスアカウントトークン作成者権限
+import {
+  to = google_service_account_iam_member.sa_token_creator
+  id = "projects/${var.project_id}/serviceAccounts/${local.gae_deployer_sa_email} roles/iam.serviceAccountTokenCreator ${local.github_principal}"
+}

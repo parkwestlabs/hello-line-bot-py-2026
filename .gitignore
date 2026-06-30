@@ -18,3 +18,8 @@ env_variables.yaml
 .ruff_cache
 htmlcov
 .coverage
+
+.terraform/
+*.tfvars
+*.tfstate
+*.tfstate.*

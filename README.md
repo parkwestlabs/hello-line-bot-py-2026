@@ -12,6 +12,33 @@
     * pytest
     * CI/CD Github Actions
     * GCP Google App Engine (GAE)
+    * GCP Workload Identity (OIDC) 連携によるデプロイ
+    * Terraform
+
+## Overview
+
+送られてくる主なイベントの種類と、この bot で扱う対象についての全体像
+
+* トーク関連
+    * MessageEvent
+        * UserSource
+            * TextMessageContent ← このbotはUserから来たTextを扱う
+            * ImageMessageContent
+            * StickerMessageContent
+            * ...
+        * GroupSource
+        * RoomSource
+        * UnsendEvent
+    * FollowEvent
+    * UnfollowEvent
+* グループ関連
+    * JoinEvent
+    * LeaveEvent
+    * MemberJoinedEvent
+    * MemberLeftEvent
+* アクション・通知関連
+    * PostbackEvent
+    * ...
 
 ## Quick Start
 
@@ -25,17 +52,65 @@ uv run pytest -v
 uv run fastapi dev main.py
 ```
 
-## GAE Deploy
+## Quick Deploy
+
+GCP Google AppEngine (GAE) に terraform でデプロイする手順
+
+### (1) Manual Deploy
 
 * まずは、ターミナル上から `gcloud app deploy` でデプロイできるようにする
-* `env_variables.yaml` を作成
-    * 参照→ https://stackoverflow.com/a/54055525
-* LINE Developers > Messaging API設定 から値を取得する
-```yaml
-env_variables:
-  LINE_CHANNEL_ACCESS_TOKEN: '*****'
-  LINE_CHANNEL_SECRET: '*****'
+* 最初に project は手動で作成する
+* (参考) Organizations ID が取得できる場合は project 作成自体も terraform 化できるらしい
+    * `gcloud organizations list` で Organizations の有無を確認
+
+```bash
+# gcloud CLI 用ログイン
+gcloud auth login
+
+gcloud projects create [好きなプロジェクトID] --name="[好きなプロジェクトNAME]"
+gcloud projects list    # PROJECT_NUMBER を確認
 ```
+
+* `terraform-gcp/terraform.tfvars.sample` に基づき `terraform-gcp/terraform.tfvars` を作成する
+
+```bash
+# その他ツール用ログイン - ADC (Application Default Credentials)
+gcloud auth application-default login
+
+terraform-gcp/
+
+terraform init
+terraform plan
+terraform apply
+```
+
+* `main.tf` にある AppEngine の土台のみが作成されているはず
+* LINE Developers > Messaging API設定 から必要な値を取得する
+    * https://developers.line.biz/ja/
+* `env_variables.yaml.sample` に基づき `env_variables.yaml` を作成する
+    * 参照→ https://stackoverflow.com/a/54055525
+* ターミナル上から python のコードを deploy できるはず
+
+```bash
+gcloud app deploy
+```
+
+* 出力される app_url に `/callback` を付けて LINE Developers > Messaging API設定 > Webhook URL に登録
+
+### (2) Github Actions Deploy
+
+Github Actions から自動 Deploy する設定
+
+* `gha_deploy.tf` にある Workload Identity の設定もされているはず
+* Github に secrets を設定する
+    * 下記 5. [GitHub Secrets に登録する](#5-github-secrets-に登録する) 参照
+* workflow の `google-github-actions/deploy-appengine@v3` が `gcloud app deploy` してくれる
+
+-----
+
+以下は、Terraform 化の前提となる CLI の作業手順の記録
+
+## GAE Deploy
 
 * `gcloud` で各種設定とデプロイ
 
@@ -50,7 +125,7 @@ gcloud auth login
 # 2. プロジェクト一覧を表示して、使いたいプロジェクトIDを確認
 gcloud projects list
 # またはプロジェクト作成
-gcloud projects create [好きなプロジェクトID]
+gcloud projects create [好きなプロジェクトID] --name="[好きなプロジェクトNAME]"
 
 # 3. デプロイ先のプロジェクトを設定
 gcloud config set project [あなたのプロジェクトID]
@@ -82,6 +157,9 @@ gcloud app deploy
 #   $ gcloud app browse
 ```
 
+* 最後に表示された URL に `/callback` を付けて Webhook URL に登録する
+    * LINE Developers > Messaging API設定
+
 ### Troubleshooting
 
 * デバッグ用一覧コマンド
@@ -112,18 +190,12 @@ PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNum
 
 # (注) GCP初期からある appspot だけ例外で PROJECT_ID@appspot になる
 GAE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
-CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
 
 # まずは公式docの説明の通り、デフォルトのサービス アカウントに
 # ストレージ管理者（roles/storage.admin）のロールを付与します。
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$GAE_SA" \
     --role="roles/storage.admin"
-
-# cloudbuild も設定する必要があるらしい
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:$CB_SA" \
-    --role="roles/cloudbuild.builds.editor"
 ```
 
 以下、`gcloud app deploy` する度にエラーが出るので、
@@ -173,7 +245,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 * Github Actions の workflow を設定: `.github/workflows/main.yaml`
     * CI: ruff の linter formatter と pytest 実行
     * CD: GCP の Google AppEngine に自動デプロイする
-* Workload Identity 連携を使って認証する
+* Workload Identity (OIDC) 連携を使って認証する
     * `google-github-actions/auth@v3`
     * `google-github-actions/deploy-appengine@v3`
 * (参考) サービスアカウントキーを用いずにGitHub ActionsからGoogle Cloudと認証する
@@ -297,6 +369,106 @@ gcloud iam workload-identity-pools providers describe $PROVIDER_NAME \
 # WIF_SERVICE_ACCOUNT として登録する値
 echo $SA_EMAIL
 ```
+
+## Terraform
+
+* 上記の gcloud CLI による作業を Terraform を使って自動化・スクリプト化する
+
+```bash
+cd terraform-gcp/
+
+# 最初の一回だけ初期化
+terraform init
+# .terraform/ が作成される
+
+gcloud auth application-default login
+```
+
+* ブラウザが開き、以下が出てくるので、両方チェックして続ける
+    * Google Cloud のデータの参照、編集、設定、削除、Google アカウントのメールアドレスの参照
+    * Google Cloud SQL インスタンスを参照してログインする
+* `~/.config/gcloud/application_default_credentials.json` が作成され、自動で利用される
+    * `provider "google"` に `credentials` や `access_token` は不要
+
+### 先に gcloud CLI で作成したリソースを管理下に置く
+
+* `terraform import` の代わりに generate (importブロック) を使う
+    * `imports.tf` に import ブロックを書く
+    * `-generate-config-out` オプションで `generated.tf` が生成される
+    * `generated.tf` の中を変数に置き換えて整理整頓
+    * `terraform plan` で `Plan: 15 to import...` と出れば成功
+    * `terraform apply` で State ファイルに書き込み terraform の管理下に入る
+        * `terraform.tfstate` は一旦 local 管理として `.gitignore` に入れる
+        * リモートバックエンド (GCSバケット) が望ましい
+    * `terraform plan` を再度実行して `No changes.` と出ることを確認
+    * `generated.tf` から整頓後のコードを `main.tf` に移動して `generated.tf` は削除
+    * `imports.tf` も作業後に削除する。(参考用に `imports.tf.backup` として保持している)
+* `imports.tf` に入れるのはユーザー管理のもののみを対象にする
+    * `SERVICE_ACCOUNT_NAME@PROJECT_ID.iam.gserviceaccount.com` を管理対象にする
+    * `PROJECT_ID@appspot.gserviceaccount.com` (Google管理 / デフォルト) 自体は対象外
+        * 追加された権限のみを対象にする (参考: `imports.tf.backup`)
+
+```bash
+# imports.tf から generated.tf を生成
+terraform plan -generate-config-out=generated.tf
+
+# 整理整頓後
+terraform plan
+terraform apply
+
+# format
+terraform fmt
+```
+
+### role 追加など、同じことの繰り返しは DRY にできる
+
+generateではリソースを個別に生成するしかないが、後から配列化する方法
+
+* `locals` に role を配列として定義する
+* 重複したコードをその配列を使って `for_each` `toset` `each.key` で DRY にする
+* `moved` で移動前後のリソース名を指定する (一時的なものなのでどこに書いてもよい)
+* `terraform plan` で `Plan: 0 to add, 0 to change, 0 to destroy.` と出れば成功
+* `terraform apply` を実行し `Apply complete! Resources: 0 added, 0 changed, 0 destroyed.` で成功
+* `moved` は配列化に限らず、リソースの rename 全般に便利に利用できる
+
+```bash
+# moved で個別指定から配列への rename を指定する例
+moved {
+  from = google_project_iam_member.default_sa_artifactregistry_reader_role
+  to   = google_project_iam_member.gae_sys_sa_roles["roles/artifactregistry.reader"]
+}
+moved {
+  from = google_project_iam_member.default_sa_artifactregistry_writer_role
+  to   = google_project_iam_member.gae_sys_sa_roles["roles/artifactregistry.writer"]
+}
+# ... (これを配列の全要素分繰り返す)
+```
+
+### Clean Up
+
+```bash
+# 全削除
+terraform destroy
+
+# 削除されたことを確認
+terraform state list
+# タイミング問題もあり得るので、もし何か残っていたら、もう一度 terraform destroy してみるとよい
+
+# 大量の出力がされるが、ほぼsystemが管理しているものでスルーでOKなはず
+gcloud asset search-all-resources --scope="projects/YOUR_PROJECT_ID" --format="table(assetType, displayName)"
+
+# project 全体を削除すれば課金も確実にされなくなる
+gcloud projects delete YOUR_PROJECT_ID
+
+# sys で始まるPROJECT_IDはsystem用なので課金もされず無視してOK
+gcloud projects list
+```
+
+### Tips
+
+* GCP のnamingは、idは番号ではなく文字、数字のidはnumberが別にあり、またdisplay_nameとして人間用の文字がある
+* google_project_iam_member: プロジェクト内のリソースを操作できるmember (例: サービスアカウント)
+* google_service_account_iam_member: サービスアカウントを操作できるmember (例: GitHub Actions)
 
 ## Init Project Notes
 
